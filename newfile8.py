@@ -10,38 +10,64 @@ OWNER_NAME = "حافظ عبده احمد عبدالرحمن احمد"
 JAIB_ACCOUNT = "784714890"
 PHONE_PAY = "784714890"
 
+# 📢 ضع يوزر قناتك هنا (يجب أن يبدأ بـ @)
+CHANNEL_USERNAME = "@hafz45bot" 
+
 bot = telebot.TeleBot(TOKEN)
 
-if not os.path.exists( uploads ):
-    os.makedirs( uploads )
+if not os.path.exists('uploads'):
+    os.makedirs('uploads')
 
 def init_db():
-    conn = sqlite3.connect( bot_data.db )
+    conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
-    cursor.execute(   CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, status TEXT, file_path TEXT)   )
+    cursor.execute('CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, status TEXT, file_path TEXT)')
     conn.commit()
     conn.close()
 
 init_db()
 
 def is_subscribed(user_id):
-    conn = sqlite3.connect( bot_data.db )
+    conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute("SELECT status FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     conn.close()
-    return row and row[0] ==  active 
+    return row and row[0] == 'active'
 
 def activate_user(user_id):
-    conn = sqlite3.connect( bot_data.db )
+    conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO users (user_id, status) VALUES (?, ?)", (user_id,  active ))
+    cursor.execute("INSERT OR REPLACE INTO users (user_id, status) VALUES (?, ?)", (user_id, 'active'))
     conn.commit()
     conn.close()
+
+# دالة للتحقق من اشتراك المستخدم في القناة
+def check_channel_sub(user_id):
+    try:
+        member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        if member.status in ['member', 'administrator', 'creator']:
+            return True
+        return False
+    except Exception as e:
+        # إذا حدث خطأ (مثل أن البوت ليس مشرفاً بعد) سيسمح للمستخدم بالمرور مؤقتاً لتجنب توقف البوت
+        print(f"Error checking sub: {e}")
+        return True
 
 # ================== المعالجات ==================
 @bot.message_handler(commands=["start"])
 def start(message):
+    uid = message.chat.id
+    
+    # التحقق من الاشتراك في القناة أولاً
+    if not check_channel_sub(uid):
+        m = types.InlineKeyboardMarkup(row_width=1)
+        btn_link = types.InlineKeyboardButton("📢 اشترك في القناة أولاً", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")
+        btn_check = types.InlineKeyboardButton("✅ تم الاشتراك (تأكيد)", callback_data="check_sub_again")
+        m.add(btn_link, btn_check)
+        bot.send_message(uid, "❌ عذراً عزيزي، يجب عليك الاشتراك في قناة المنصة أولاً لتتمكن من استخدام البوت!\n\nاشترك ثم اضغط على زر التأكيد بالأسفل.", reply_markup=m)
+        return
+
     welcome_text = (
         "🚀 **أهلاً بك في منصة حافظ الرقمية!**\n\n"
         "نحن هنا لتقديم أفضل الخدمات التقنية ورفع ملفاتك بأمان وسرعة.\n"
@@ -55,7 +81,7 @@ def start(message):
     m.add(types.InlineKeyboardButton("📱 رفع ملف APK", callback_data="apk"),
           types.InlineKeyboardButton("💳 عرض باقات الاشتراك", callback_data="pay"))
     try:
-        bot.send_message(message.chat.id, welcome_text, reply_markup=m, parse_mode="Markdown")
+        bot.send_message(uid, welcome_text, reply_markup=m, parse_mode="Markdown")
     except Exception as e:
         print(f"Error in start: {e}")
 
@@ -63,6 +89,23 @@ def start(message):
 def handle_callbacks(call):
     uid = call.message.chat.id
     try:
+        # معالجة زر التأكيد بعد الاشتراك في القناة
+        if call.data == "check_sub_again":
+            if check_channel_sub(uid):
+                bot.delete_message(uid, call.message.message_id)
+                welcome_text = (
+                    "🚀 **أهلاً بك في منصة حافظ الرقمية!**\n\n"
+                    "شكراً لك على الاشتراك، تم تفعيل البوت بنجاح.\n\n"
+                    "👇 **اختر الخدمة التي تناسبك من الأزرار أدناه:**"
+                )
+                m = types.InlineKeyboardMarkup()
+                m.add(types.InlineKeyboardButton("📱 رفع ملف APK", callback_data="apk"),
+                      types.InlineKeyboardButton("💳 عرض باقات الاشتراك", callback_data="pay"))
+                bot.send_message(uid, welcome_text, reply_markup=m, parse_mode="Markdown")
+            else:
+                bot.answer_callback_query(call.id, "❌ لم تشترك في القناة بعد! يرجى الاشتراك أولاً.", show_alert=True)
+            return
+
         if call.data == "apk":
             if is_subscribed(uid):
                 msg = bot.send_message(uid, "📱 أرسل ملف الـ APK الآن (كمستند).")
@@ -82,7 +125,7 @@ def handle_callbacks(call):
             m.add(
                 types.InlineKeyboardButton("🗓 أسبوعي (2$)", callback_data="manual_2"),
                 types.InlineKeyboardButton("📅 شهري (3$)", callback_data="manual_3"),
-                types.InlineKeyboardButton("📊 ربع سنوي (5$)", callback_data="manual_9")
+                types.InlineKeyboardButton("📊 ربع سنوي (5$)", callback_data="manual_5")
             )
             bot.edit_message_text("اختر الباقة للدفع اليدوي:", uid, call.message.message_id, reply_markup=m)
 
@@ -114,12 +157,12 @@ def handle_callbacks(call):
     except Exception as e:
         print(f"Callback error: {e}")
 
-@bot.message_handler(content_types=[ successful_payment ])
+@bot.message_handler(content_types=['successful_payment'])
 def successful_payment(message):
     activate_user(message.chat.id)
     bot.reply_to(message, "✅ شكراً! تم تفعيل اشتراكك تلقائياً.")
 
-@bot.message_handler(content_types=[ photo ])
+@bot.message_handler(content_types=['photo'])
 def handle_receipt(message):
     uid = message.chat.id
     m = types.InlineKeyboardMarkup()
@@ -135,10 +178,10 @@ def save_apk_file(message):
         file_info = bot.get_file(message.document.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         save_path = f"uploads/{message.chat.id}_{message.document.file_name}"
-        with open(save_path,  wb ) as new_file:
+        with open(save_path, 'wb') as new_file:
             new_file.write(downloaded_file)
         
-        conn = sqlite3.connect( bot_data.db )
+        conn = sqlite3.connect('bot_data.db')
         conn.cursor().execute("UPDATE users SET file_path = ? WHERE user_id = ?", (save_path, message.chat.id))
         conn.commit()
         conn.close()
@@ -150,5 +193,4 @@ def save_apk_file(message):
         print(f"Upload error: {e}")
 
 if __name__ == "__main__":
-    # هذا السطر هو الأهم في بيئة PythonAnywhere لتقليل أخطاء الـ 503
     bot.infinity_polling(timeout=20, long_polling_timeout=20)
