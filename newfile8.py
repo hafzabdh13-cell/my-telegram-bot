@@ -4,7 +4,7 @@ import sqlite3
 import os
 
 # ================== الإعدادات ==================
-TOKEN = "8896896933:AAFqlwDkCbQEOe7bnQEmGmG6lIoQvfoDXlU"
+TOKEN = "8675468296:AAFjLWMdHqHK-H3IuGFbH201xog-UWBGb3s"
 ADMIN_ID = 8617632424
 OWNER_NAME = "حافظ عبده احمد عبدالرحمن احمد"
 JAIB_ACCOUNT = "784714890"
