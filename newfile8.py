@@ -6,7 +6,6 @@ from flask import Flask, jsonify
 from threading import Thread
 
 # ================== الإعدادات ==================
-# ملاحظة: يُفضل دائماً استخدام os.environ.get('TOKEN') للاستضافات
 TOKEN = os.environ.get('TOKEN', "8675468296:AAFjLWMdHqHK-H3IuGFbH201xog-UWBGb3s")
 ADMIN_ID = 8617632424
 OWNER_NAME = "حافظ عبده احمد عبدالرحمن احمد"
@@ -14,8 +13,9 @@ JAIB_ACCOUNT = "784714890"
 PHONE_PAY = "784714890"
 CHANNEL_USERNAME = "@hafz45bot" 
 
-# --- إعداد الخادم الوهمي (لضمان استمرار البوت على Render) ---
+# --- إعداد الخادم والـ API ---
 app = Flask('')
+
 @app.route('/')
 def home():
     return "البوت يعمل بكامل طاقته!"
@@ -31,7 +31,6 @@ def run():
 
 t = Thread(target=run)
 t.start()
-# -----------------------------------------------------
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -77,13 +76,23 @@ def start(message):
         m = types.InlineKeyboardMarkup(row_width=1)
         m.add(types.InlineKeyboardButton("📢 اشترك في القناة أولاً", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"),
               types.InlineKeyboardButton("✅ تم الاشتراك (تأكيد)", callback_data="check_sub_again"))
-        bot.send_message(uid, "❌ عذراً، يجب عليك الاشتراك في قناة المنصة أولاً!", reply_markup=m)
+        bot.send_message(uid, "⚠️ **عذراً، الوصول مقيد!**\n\nيجب عليك الاشتراك في القناة الرسمية لتتمكن من استخدام كافة ميزات المنصة.", reply_markup=m)
         return
 
+    welcome_text = (
+        "💎 **مرحباً بك في منصة حافظ الرقمية** 💎\n\n"
+        "حيث تجتمع القوة، السرعة، والأمان في مكان واحد.\n\n"
+        "✨ **لماذا تختارنا؟**\n"
+        "🔹 **رفع وتخزين:** استضافة تطبيقاتك (APK) بجودة عالية.\n"
+        "🔹 **نظام متطور:** ربط فوري وآمن بين تطبيقاتك وسيرفراتنا.\n"
+        "🔹 **دعم تقني:** نحن معك خطوة بخطوة للارتقاء بمشاريعك.\n\n"
+        "📍 *اختر الخدمة التي تليق بمشروعك من القائمة أدناه:* 👇"
+    )
+    
     m = types.InlineKeyboardMarkup()
-    m.add(types.InlineKeyboardButton("📱 رفع ملف APK", callback_data="apk"),
-          types.InlineKeyboardButton("💳 عرض باقات الاشتراك", callback_data="pay"))
-    bot.send_message(uid, "🚀 أهلاً بك في منصة حافظ الرقمية!\n👇 اختر الخدمة:", reply_markup=m)
+    m.add(types.InlineKeyboardButton("📱 رفع تطبيق APK", callback_data="apk"),
+          types.InlineKeyboardButton("💳 باقات الاشتراك", callback_data="pay"))
+    bot.send_message(uid, welcome_text, reply_markup=m, parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callbacks(call):
@@ -101,7 +110,7 @@ def handle_callbacks(call):
             bot.register_next_step_handler(msg, save_apk_file)
         else:
             bot.answer_callback_query(call.id, "❌ يجب الاشتراك أولاً!")
-            bot.send_message(uid, "❌ لا يمكنك رفع الملفات، يجب الاشتراك أولاً.")
+            bot.send_message(uid, "❌ لا يمكنك رفع الملفات، يجب الاشتراك في إحدى باقاتنا أولاً.")
                 
     elif call.data == "pay":
         m = types.InlineKeyboardMarkup(row_width=1)
