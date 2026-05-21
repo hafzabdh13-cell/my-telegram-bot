@@ -1,4 +1,3 @@
 pyTelegramBotAPI
 Flask
-gunicorn
-
+waitress
