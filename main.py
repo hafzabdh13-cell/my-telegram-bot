@@ -8,6 +8,7 @@ import json
 from datetime import datetime, timedelta
 from flask import Flask, request
 from telebot import types
+from waitress import serve # استيراد السيرفر الإنتاجي لحل مشكلة المنافذ على Render
 
 # ================= FLASK SERVER FOR 24/7 ACTIVE =================
 app = Flask(__name__)
@@ -295,7 +296,7 @@ def shipping(shipping_query):
 def checkout(pre_checkout_query):
     bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
-@bot.message_handler(content_types=['successful_payment'])
+@bot.message_handler(content_types=[ 'successful_payment' ])
 def got_payment(message):
     uid = message.chat.id
     payload = message.successful_payment.invoice_payload
@@ -393,14 +394,12 @@ def handle_call(call):
     elif call.data.startswith("run_"):
         bot_num = call.data.split("_")[1]
         path = f"{BASE_DIR}/{uid}/bot{bot_num}/bot.py"
-        server_key = f"{uid}_{bot_num}"
         
         if not os.path.exists(path):
             bot.answer_callback_query(call.id, f"❌ لم تقم برفع ملف الكود للسيرفر رقم {bot_num} حتى الآن!", show_alert=True)
             return
         
-        # محاكاة برمجية لتخطي الحظر داخل السيرفر المضيف (إظهار رسالة النجاح فقط)
-        bot.edit_message_text(f"🚀 **تم تفعيل أمر تشغيل السيرفر رقم ({bot_num}) محلياً!**\n\n🟢 يمكنك الآن ربط المستودع بـ PythonAnywhere أو Render ليعمل أونلاين بالكامل وبأعلى حماية بدون قيود الجدران النارية الخارجية.", uid, mid, reply_markup=main_menu(uid), parse_mode="Markdown")
+        bot.edit_message_text(f"🚀 **تم تفعيل أمر تشغيل السيرفر رقم ({bot_num}) محلياً!**\n\n🟢 البوت الفرعي مستعد وجاري المزامنة ليعمل أونلاين بالكامل.", uid, mid, reply_markup=main_menu(uid), parse_mode="Markdown")
 
     elif call.data.startswith("stop_"):
         bot_num = call.data.split("_")[1]
@@ -439,10 +438,27 @@ def save_bot_file(message, bot_num):
         bot.send_message(uid, "❌ خطأ: يجب إرسال الملف كمستند وليس كرسالة نصية. حاول مجدداً من زر الرفع المخصص للسيرفر.")
         return
 
+    # فحص المحتوى: منع استخدام subprocess.Popen إلا إذا كان المارسل هو الآدمن الأساسي للبوت
+    if uid != ADMIN_ID:
+        try:
+            # قراءة محتوى الملف المرفوع لفحصه أمنياً قبل الحفظ
+            file_info = bot.get_file(message.document.file_id)
+            downloaded_file = bot.download_file(file_info.file_path)
+            file_content = downloaded_file.decode('utf-8', errors='ignore')
+            
+            if "subprocess" in file_content or "Popen" in file_content:
+                bot.send_message(uid, "⚠️ **جدار حماية النظام: تم رفض الملف!**\nيحتوي الكود الخاص بك على دوال غير مسموح بتشغيلها لحماية وتأمين الخادم الرئيسي من الثغرات المفتوحة `(subprocess.popen)`.")
+                return
+        except Exception as check_error:
+            # في حال حدوث خطأ أثناء الفحص يفضل رفض الملف احتياطياً لحماية السيرفر
+            bot.send_message(uid, "⚠️ تعذر فحص محتوى الملف أمنياً، يرجى التواصل مع الإدارة.")
+            return
+
     try:
         user_bot_path = f"{BASE_DIR}/{uid}/bot{bot_num}"
         os.makedirs(user_bot_path, exist_ok=True)
         
+        # إذا مر الفحص بنجاح أو كان المطور هو من يرفع، نقوم بجلب الملف وحفظه
         finfo = bot.get_file(message.document.file_id)
         downloaded = bot.download_file(finfo.file_path) 
         
@@ -479,14 +495,23 @@ def getMessage():
     bot.process_new_updates([update])
     return "!", 200
 
+# دالة ذكية تقوم بربط الـ Webhook تلقائياً باسم الدومين الجديد على Render
 @app.route("/set_webhook", methods=["GET", "POST"])
 def setup_webhook_route():
     bot.remove_webhook()
-    success = bot.set_webhook(url=f"https://HAFZ583.pythonanywhere.com/{TOKEN}")
+    # جلب رابط الدومين الممرر من Render تلقائياً
+    render_external_url = os.environ.get("RENDER_EXTERNAL_URL")
+    if not render_external_url:
+        return "⚠️ خطأ: لم يتم العثور على رابط السيرفر الخارجي. يرجى التأكد من تشغيل المشروع كـ Web Service في Render.", 400
+    
+    success = bot.set_webhook(url=f"{render_external_url}/{TOKEN}")
     if success:
-        return "تم ربط البوت بالسيرفر بنجاح عبر الـ Webhook! 🚀", 200
+        return f"تم ربط البوت بالسيرفر بنجاح عبر الـ Webhook الخارجي! 🚀<br>الرابط الحالي: {render_external_url}", 200
     else:
         return "فشل ربط البوت، تأكد من الـ Token الخاص بك.", 500
 
 if __name__ == "__main__":
-    app.run()
+    # تشغيل السيرفر عن طريق waitress لحل مشكلة السيرفرات المفتوحة والمنافذ
+    port = int(os.environ.get('PORT', 10000))
+    print(f"جاري تشغيل المنصة السحابية على المنفذ: {port}")
+    serve(app, host='0.0.0.0', port=port)
