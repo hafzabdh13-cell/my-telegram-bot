@@ -436,24 +436,6 @@ def save_bot_file(message, bot_num):
     uid = message.chat.id
     if not message.document:
         bot.send_message(uid, "❌ خطأ: يجب إرسال الملف كمستند وليس كرسالة نصية. حاول مجدداً من زر الرفع المخصص للسيرفر.")
-        return
-
-    # فحص المحتوى: منع استخدام subprocess.Popen إلا إذا كان المارسل هو الآدمن الأساسي للبوت
-    if uid != ADMIN_ID:
-        try:
-            # قراءة محتوى الملف المرفوع لفحصه أمنياً قبل الحفظ
-            file_info = bot.get_file(message.document.file_id)
-            downloaded_file = bot.download_file(file_info.file_path)
-            file_content = downloaded_file.decode('utf-8', errors='ignore')
-            
-            if "subprocess" in file_content or "Popen" in file_content:
-                bot.send_message(uid, "⚠️ **جدار حماية النظام: تم رفض الملف!**\nيحتوي الكود الخاص بك على دوال غير مسموح بتشغيلها لحماية وتأمين الخادم الرئيسي من الثغرات المفتوحة `(subprocess.popen)`.")
-                return
-        except Exception as check_error:
-            # في حال حدوث خطأ أثناء الفحص يفضل رفض الملف احتياطياً لحماية السيرفر
-            bot.send_message(uid, "⚠️ تعذر فحص محتوى الملف أمنياً، يرجى التواصل مع الإدارة.")
-            return
-
     try:
         user_bot_path = f"{BASE_DIR}/{uid}/bot{bot_num}"
         os.makedirs(user_bot_path, exist_ok=True)
@@ -502,13 +484,6 @@ def setup_webhook_route():
     # جلب رابط الدومين الممرر من Render تلقائياً
     render_external_url = os.environ.get("RENDER_EXTERNAL_URL")
     if not render_external_url:
-        return "⚠️ خطأ: لم يتم العثور على رابط السيرفر الخارجي. يرجى التأكد من تشغيل المشروع كـ Web Service في Render.", 400
-    
-    success = bot.set_webhook(url=f"{render_external_url}/{TOKEN}")
-    if success:
-        return f"تم ربط البوت بالسيرفر بنجاح عبر الـ Webhook الخارجي! 🚀<br>الرابط الحالي: {render_external_url}", 200
-    else:
-        return "فشل ربط البوت، تأكد من الـ Token الخاص بك.", 500
 
 if __name__ == "__main__":
     # تشغيل السيرفر عن طريق waitress لحل مشكلة السيرفرات المفتوحة والمنافذ
